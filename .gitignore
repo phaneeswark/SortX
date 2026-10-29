@@ -1,0 +1,14 @@
+# macOS
+.DS_Store
+Icon?
+
+# Python
+__pycache__/
+*.pyc
+
+# Sort X writes these into sorted folders; they don't belong in the code
+sort_log_*.json
+duplicates_report_*.csv
+
+# Local tool settings
+.claude/

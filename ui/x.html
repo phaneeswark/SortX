@@ -1,0 +1,737 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>.X · Sort X</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%235b8cff'/%3E%3Cstop offset='1' stop-color='%237a5cf5'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='64' height='64' rx='16' fill='url(%23g)'/%3E%3Ctext x='32' y='43' font-family='-apple-system,Helvetica,Arial,sans-serif' font-size='30' font-weight='800' text-anchor='middle' fill='white'%3E.X%3C/text%3E%3C/svg%3E">
+<script>
+  // Saved settings are filled in by the Sort X server. Apply the theme before the page draws.
+  window.SORTX_SETTINGS = /*__SETTINGS__*/null;
+</script>
+<link rel="stylesheet" href="/common.css">
+<script src="/common.js"></script>
+</head>
+<body data-app="x">
+<div class="app">
+  <header class="top">
+    <button class="btn small ghost" id="undoTop" hidden>
+      <svg class="i" viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg>
+      <span>Undo last run</span>
+    </button>
+  </header>
+
+  <div class="grid">
+    <!-- ================= setup ================= -->
+    <aside class="panel setup">
+      <div>
+        <p class="section-title">Folder to sort</p>
+        <button class="folder-card" id="srcCard" type="button">
+          <div class="folder-icon"><svg class="i" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></div>
+          <div class="folder-text">
+            <div class="folder-name" id="srcName">Choose a folder…</div>
+            <div class="folder-path" id="srcPath"><bdi>Click to pick a folder on your Mac</bdi></div>
+          </div>
+        </button>
+        <div class="dest-row" id="destRow" hidden>
+          <span>Save to</span>
+          <span class="path" id="destPath" title=""></span>
+          <button class="link" id="destChange" type="button">Change</button>
+        </div>
+      </div>
+
+      <div>
+        <p class="section-title">Options</p>
+        <div class="opts">
+          <label class="opt">
+            <div class="opt-text"><div class="opt-title">Find duplicates</div>
+              <div class="opt-desc">Exact copies go to a Duplicates folder. Nothing is deleted.</div></div>
+            <span class="switch"><input type="checkbox" id="optDedupe" checked><span class="track"></span></span>
+          </label>
+          <label class="opt">
+            <div class="opt-text"><div class="opt-title">Include subfolders</div>
+              <div class="opt-desc">Also sort files inside folders within this folder.</div></div>
+            <span class="switch"><input type="checkbox" id="optRecursive" checked><span class="track"></span></span>
+          </label>
+          <label class="opt">
+            <div class="opt-text"><div class="opt-title">Year / month folders</div>
+              <div class="opt-desc" id="dateDesc">For example Images/2019/07-July. Photos use the date taken.</div></div>
+            <span class="switch"><input type="checkbox" id="optDate"><span class="track"></span></span>
+          </label>
+          <label class="opt">
+            <div class="opt-text"><div class="opt-title">Keep originals</div>
+              <div class="opt-desc">Copy files instead of moving them.</div></div>
+            <span class="switch"><input type="checkbox" id="optCopy"><span class="track"></span></span>
+          </label>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button class="btn" id="previewBtn" type="button">
+          <svg class="i" viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
+          Preview
+        </button>
+        <button class="btn primary" id="runBtn" type="button">
+          <svg class="i" viewBox="0 0 24 24"><path d="m5 12 5 5L20 7"/></svg>
+          Sort now
+        </button>
+      </div>
+      <p class="hint">Preview shows the plan first. Nothing changes until you sort.</p>
+    </aside>
+
+    <!-- ================= results ================= -->
+    <section class="panel results" id="results">
+      <div class="empty" id="emptyView">
+        <div class="empty-art"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></div>
+        <h2>Nothing sorted yet</h2>
+        <p>Choose a folder, then click <b>Preview</b> to see where every file will go before anything moves.</p>
+      </div>
+
+      <div class="working" id="workView" hidden>
+        <h2 id="workTitle">Working…</h2>
+        <div class="bar indet" id="workBar"><div></div></div>
+        <div class="meta"><span id="workPhase">Starting</span><span id="workCount"></span></div>
+        <div class="work-actions">
+          <button class="btn stop" id="stopBtn" type="button" title="Stop (Esc)">
+            <svg class="i" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+            <span id="stopLabel">Stop</span>
+          </button>
+          <p class="hint" id="stopHint"></p>
+        </div>
+      </div>
+
+      <div id="resultView" hidden style="display:flex; flex-direction:column; gap:16px;">
+        <div class="banner" id="banner"></div>
+        <div class="tiles" id="tiles"></div>
+        <div id="detailArea">
+          <div class="tabs-row">
+            <div class="tabs" role="tablist">
+              <button class="tab active" data-tab="files">Files <span class="count" id="cFiles">0</span></button>
+              <button class="tab" data-tab="dupes">Duplicates <span class="count" id="cDupes">0</span></button>
+              <button class="tab" data-tab="log">Details</button>
+            </div>
+            <div style="display:flex; gap:8px; align-items:center;">
+              <span class="filter-chip" id="chip" hidden><span id="chipText"></span><button id="chipX" title="Clear filter">×</button></span>
+              <label class="search" id="searchBox">
+                <svg class="i" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+                <input id="search" placeholder="Search files" autocomplete="off">
+              </label>
+            </div>
+          </div>
+          <div id="tabFiles" class="list"></div>
+          <div id="tabDupes" hidden></div>
+          <div id="tabLog" hidden style="padding-top:12px;"><pre class="log" id="log"></pre></div>
+        </div>
+      </div>
+    </section>
+  </div>
+  <div class="foot">Runs only on this Mac. Close this window when you're done.</div>
+</div>
+
+<div id="modalRoot"></div>
+<div id="toastRoot"></div>
+
+<script>
+(() => {
+  "use strict";
+  const { $, P, icon, h, size, plural, base, tilde, api, store, toast, confirmBox } = SX;   // from common.js
+  const ORDER = ["Images","Videos","Audio","Documents","Spreadsheets","Presentations",
+                 "Archives","Installers","Code","Fonts","Other"];
+  const color = (cat) => `var(--c-${cat.toLowerCase()})`;
+  // Short, readable path: "Sorted/Images/a.jpg" or "messy/sub/a.jpg" instead of the full path.
+  const pretty = (p) => {
+    const roots = [state.result && state.result.dest, state.dest, state.result && state.result.source, state.source];
+    for (const r of roots) {
+      if (r && p && (p === r || p.startsWith(r.replace(/\/$/, "") + "/"))) return base(r) + p.slice(r.replace(/\/$/, "").length);
+    }
+    return tilde(p);
+  };
+
+  // ---------- state ----------
+  const state = {
+    home: "", source: "", dest: "", destTouched: false,
+    result: null, tab: "files", filter: null, query: "", shown: 300,
+    undoLog: null, busy: false, logText: "",
+    choices: {},   // before sorting: { original path: "keep" | "remove" }
+  };
+  const opts = () => ({
+    source: state.source, dest: state.dest,
+    dedupe: $("optDedupe").checked, recursive: $("optRecursive").checked,
+    by_date: $("optDate").checked, copy: $("optCopy").checked,
+  });
+
+  // ---------- folder choosing ----------
+  function renderFolders() {
+    const has = !!state.source;
+    $("srcCard").classList.toggle("chosen", has);
+    $("srcName").textContent = has ? base(state.source) : "Choose a folder…";
+    $("srcPath").innerHTML = `<bdi>${h(has ? tilde(state.source) : "Click to pick a folder on your Mac")}</bdi>`;
+    $("destRow").hidden = !has;
+    const d = state.dest || "";
+    $("destPath").textContent = state.source && d.startsWith(state.source.replace(/\/$/, "") + "/")
+      ? base(state.source) + d.slice(state.source.replace(/\/$/, "").length) : tilde(d);
+    $("destPath").title = state.dest;
+    $("previewBtn").disabled = $("runBtn").disabled = !has || state.busy;
+  }
+
+  async function pick(which) {
+    try {
+      const start = which === "dest" ? (state.dest || state.source) : (state.source || "");
+      const { path } = await api("/api/pick", { which, start });
+      if (!path) return;
+      if (which === "src") {
+        state.source = path;
+        if (!state.destTouched) state.dest = path.replace(/\/$/, "") + "/Sorted";
+        state.result = null; state.choices = {}; showView("empty");
+      } else {
+        state.dest = path; state.destTouched = true;
+      }
+      store.set("folders", { source: state.source, dest: state.dest, destTouched: state.destTouched });
+      renderFolders(); refreshUndo();
+    } catch (e) { toast(e.message, true); }
+  }
+
+  // ---------- undo availability ----------
+  async function refreshUndo() {
+    state.undoLog = null;
+    if (state.source) {
+      try {
+        const info = await api("/api/undo-info", opts());
+        state.undoLog = info.log_file ? info : null;
+      } catch (_) {}
+    }
+    $("undoTop").hidden = !state.undoLog || state.busy;
+  }
+
+  // ---------- jobs ----------
+  function showView(v) {
+    $("emptyView").hidden = v !== "empty";
+    $("workView").hidden = v !== "work";
+    $("resultView").hidden = v !== "result";
+  }
+
+  function setBusy(b) {
+    state.busy = b;
+    ["previewBtn","runBtn","srcCard","destChange"].forEach((id) => $(id).disabled = b);
+    if (!b) renderFolders();
+    $("undoTop").hidden = b || !state.undoLog;
+  }
+
+  async function startJob(mode, extra = {}) {
+    if (state.busy) return;
+    setBusy(true);
+    const titles = { preview: "Looking through your files…", run: $("optCopy").checked ? "Copying files…" : "Sorting files…", undo: "Putting files back…" };
+    $("workTitle").textContent = titles[mode];
+    $("workPhase").textContent = "Starting"; $("workCount").textContent = "";
+    $("workBar").classList.add("indet"); $("workBar").firstElementChild.style.width = "";
+    state.mode = mode;
+    $("stopBtn").hidden = mode === "undo";
+    $("stopBtn").disabled = false; $("stopLabel").textContent = "Stop";
+    $("stopHint").textContent = mode === "run"
+      ? "Stopping finishes the current file first. You can undo or sort the rest afterwards."
+      : mode === "preview" ? "Stopping a preview changes nothing." : "";
+    showView("work");
+    state.logText = "";
+    try {
+      const choices = mode === "run" ? {
+        keep: Object.keys(state.choices).filter((k) => state.choices[k] === "keep"),
+        remove: Object.keys(state.choices).filter((k) => state.choices[k] === "remove"),
+      } : {};
+      const { job } = await api("/api/start", { ...opts(), ...choices, ...extra, mode });
+      await poll(job, mode);
+    } catch (e) {
+      toast(e.message, true);
+      showView(state.result ? "result" : "empty");
+    } finally {
+      setBusy(false);
+      refreshUndo();
+    }
+  }
+
+  async function poll(jobId, mode) {
+    let since = 0;
+    for (;;) {
+      const s = await api(`/api/job?since=${since}`);
+      if (s.log && s.log.length) { state.logText += s.log.join("\n") + "\n"; since = s.log_len; }
+      $("workPhase").textContent = s.phase || "Working";
+      const bar = $("workBar");
+      if (s.total > 0) {
+        bar.classList.remove("indet");
+        bar.firstElementChild.style.width = Math.min(100, (s.done / s.total) * 100) + "%";
+        $("workCount").textContent = `${s.done.toLocaleString()} of ${s.total.toLocaleString()}`;
+      } else {
+        bar.classList.add("indet"); $("workCount").textContent = "";
+      }
+      if (s.state === "done") {
+        if (mode === "undo") {
+          const r = s.result;
+          toast(`Undo finished: ${plural(r.restored, "file")} put back.`);
+          state.result = null; showView("empty");
+          showUndoDone(r);
+        } else {
+          if (mode === "run" && !s.result.cancelled) state.choices = {};   // applied
+          state.result = s.result; state.filter = null; state.query = ""; $("search").value = "";
+          state.shown = 300; renderResult();
+        }
+        return;
+      }
+      if (s.state === "cancelled") {
+        // stopped before anything was moved (during scanning / duplicate check)
+        toast(mode === "preview" ? "Preview stopped. Nothing was changed." : "Stopped before any files were moved.");
+        if (state.result) renderResult(); else showView("empty");
+        return;
+      }
+      if (s.stopping) {
+        $("workTitle").textContent = "Stopping…";
+        $("stopBtn").disabled = true; $("stopLabel").textContent = "Stopping…";
+      }
+      if (s.state === "error") throw new Error(s.error || "Something went wrong.");
+      await new Promise((r) => setTimeout(r, 250));
+    }
+  }
+
+  function showUndoDone(r) {
+    showView("result");
+    $("banner").className = "banner ok";
+    $("banner").innerHTML = `
+      <div class="b-icon">${icon("undo")}</div>
+      <div class="b-text"><div class="b-title">Undo complete</div>
+        <div class="b-sub">${plural(r.restored, "file")} went back where ${r.restored === 1 ? "it was" : "they were"}.${r.trashed
+          ? ` ${plural(r.trashed, "removed duplicate")} ${r.trashed === 1 ? "is" : "are"} in the Trash. To get one back, open the Trash, select it and choose File › Put Back.` : ""}</div></div>
+      <div class="b-actions"><button class="btn small" data-open="${h(r.source || state.source)}">${icon("folder")} Open folder</button></div>`;
+    state.filter = null;
+    $("tiles").innerHTML = "";
+    $("detailArea").hidden = true;
+  }
+
+  // ---------- duplicates: keep / remove ----------
+  // Before sorting, a choice is just remembered (by the file's original path) and applied by
+  // "Sort now". After sorting, the buttons act right away on files in the Duplicates folder.
+  // States: duplicate (set aside) · keep / remove (chosen, not done yet) · kept / removed (done)
+  //         original (the copy that's kept) · unsorted (a stopped sort never reached it)
+  const effState = (src, baseState) => {
+    const r = state.result;
+    return r && r.dry_run && baseState === "duplicate" ? (state.choices[src] || "duplicate") : baseState;
+  };
+  const BADGE = {
+    original: ["keep", "Original · kept"], duplicate: ["dup", "Duplicate"],
+    keep: ["keep", "Will keep"], remove: ["dup", "Will remove"],
+    kept: ["keep", "Kept"], removed: ["gone", "In Trash"], unsorted: ["gone", "Not sorted yet"],
+  };
+  const badge = (st) => `<span class="badge ${BADGE[st][0]}">${BADGE[st][1]}</span>`;
+  const isKeep = (st) => st === "keep" || st === "kept";
+  const isGone = (st) => st === "remove" || st === "removed";
+  const dupItems = () => state.result.items.filter((it) => it.original);
+  // where a duplicate set aside in Sorted/Duplicates/... would go if kept: Sorted/...
+  const normalSpot = (p) => {
+    const d = state.result.dest.replace(/\/$/, "");
+    return p && p.startsWith(d + "/Duplicates/") ? d + p.slice((d + "/Duplicates").length) : p;
+  };
+
+  function dupCounts() {
+    const c = { setAside: 0, setAsideBytes: 0, keep: 0, remove: 0, removeBytes: 0, total: 0 };
+    for (const it of dupItems()) {
+      const st = effState(it.src, it.dup_state);
+      c.total++;
+      if (st === "duplicate") { c.setAside++; c.setAsideBytes += it.size; }
+      else if (isKeep(st)) c.keep++;
+      else if (isGone(st)) { c.remove++; c.removeBytes += it.size; }
+    }
+    return c;
+  }
+
+  function choiceButtons(src, st) {
+    const r = state.result;
+    const live = r.dry_run ? ["duplicate", "keep", "remove"].includes(st) : st === "duplicate";
+    if (!live || r.cancelled && !r.log_file) return "";
+    const kTip = r.dry_run ? "Keep this file: sort it like a normal file" : "Keep: move it out of Duplicates into its normal folder";
+    const rTip = r.dry_run ? "Remove: send this duplicate to the Trash when sorting" : "Remove: send this duplicate to the Trash now";
+    return `<div class="choice" role="group" aria-label="Keep or remove this duplicate">
+        <button class="cbtn keep ${st === "keep" ? "on" : ""}" data-choice="keep" data-src="${h(src)}" aria-pressed="${st === "keep"}" title="${kTip}">${icon("check")}Keep</button>
+        <button class="cbtn remove ${st === "remove" ? "on" : ""}" data-choice="remove" data-src="${h(src)}" aria-pressed="${st === "remove"}" title="${rTip}">${icon("Trash")}Remove</button>
+      </div>`;
+  }
+
+  function dupSummary(r, c) {
+    const parts = [];
+    if (c.setAside) parts.push(`${plural(c.setAside, "duplicate")} ${r.dry_run ? "set aside" : "in the Duplicates folder"}`);
+    if (c.remove) parts.push(`${plural(c.remove, "duplicate")} ${r.dry_run ? "to the Trash" : "moved to the Trash"}`);
+    if (c.keep) parts.push(`${plural(c.keep, "duplicate")} kept`);
+    return parts.join(", ");
+  }
+
+  function tileData(r, c) {
+    let cats;
+    if (r.items_truncated) {
+      cats = ORDER.filter((k) => r.categories[k]).map((k) => ({ c: k, ...r.categories[k] }));
+    } else {   // count from the file list so keep/remove choices show up immediately
+      const acc = {};
+      for (const it of r.items) {
+        const st = it.original ? effState(it.src, it.dup_state) : null;
+        if (it.original && !isKeep(st)) continue;
+        const t = acc[it.category] || (acc[it.category] = { count: 0, bytes: 0 });
+        t.count++; t.bytes += it.size;
+      }
+      cats = ORDER.filter((k) => acc[k]).map((k) => ({ c: k, ...acc[k] }));
+    }
+    if (c.setAside) cats.push({ c: "Duplicates", count: c.setAside, bytes: c.setAsideBytes });
+    if (c.remove) cats.push({ c: "Trash", count: c.remove, bytes: c.removeBytes });
+    return cats;
+  }
+
+  // ---------- rendering results ----------
+  function renderResult() {
+    const r = state.result;
+    showView("result");
+    $("detailArea").hidden = r.total === 0;
+    const c = dupCounts();
+    const sorted = r.total - c.total + c.keep;
+    const verb = r.copy ? "copied" : "moved";
+    const dupText = dupSummary(r, c);
+
+    let cls, ic, title, sub, actions;
+    if (r.total === 0) {
+      cls = "ok"; ic = "check"; title = "Already tidy";
+      sub = "There's nothing to sort in this folder.";
+      actions = "";
+    } else if (r.dry_run) {
+      cls = "info"; ic = "eye"; title = "Preview: nothing has changed yet";
+      sub = `${plural(sorted, "file")} would be ${verb} into folders` + (dupText ? `, ${dupText}.` : ".");
+      actions = (c.total ? `<button class="btn small" id="bannerDupes">${icon("Duplicates")} Review duplicates</button>` : "") +
+                `<button class="btn small primary" id="bannerRun">${icon("check")} Sort now</button>`;
+    } else if (r.cancelled) {
+      const left = r.planned_total - r.total;
+      cls = "warn"; ic = "warn"; title = "Stopped";
+      sub = `${plural(r.total, "file")} of ${r.planned_total.toLocaleString()} handled before you stopped. ` +
+            `${plural(left, "file")} not sorted yet.`;
+      actions = `<button class="btn small primary" id="bannerRest">${icon("check")} Sort the rest</button>
+                 <button class="btn small" data-open="${h(r.dest)}">${icon("folder")} Open</button>
+                 <button class="btn small ghost" id="bannerUndo">${icon("undo")} Undo</button>`;
+    } else {
+      cls = r.errors.length ? "warn" : "ok"; ic = r.errors.length ? "warn" : "check";
+      title = r.errors.length ? `Done, with ${plural(r.errors.length, "problem")}` : "All sorted";
+      sub = `${plural(sorted, "file")} ${verb}` + (dupText ? `, ${dupText}.` : ".");
+      actions = (c.setAside ? `<button class="btn small" id="bannerDupes">${icon("Duplicates")} Review duplicates</button>` : "") +
+                `<button class="btn small" data-open="${h(r.dest)}">${icon("folder")} Open sorted folder</button>
+                 <button class="btn small ghost" id="bannerUndo">${icon("undo")} Undo</button>`;
+    }
+    $("banner").className = "banner " + cls;
+    $("banner").innerHTML = `<div class="b-icon">${icon(ic)}</div>
+      <div class="b-text"><div class="b-title">${h(title)}</div><div class="b-sub">${h(sub)}</div></div>
+      <div class="b-actions">${actions}</div>`;
+    const br = $("bannerRun"); if (br) br.onclick = runNow;
+    const bu = $("bannerUndo"); if (bu) bu.onclick = undoNow;
+    const bs = $("bannerRest"); if (bs) bs.onclick = () => startJob("run");
+    const bd = $("bannerDupes"); if (bd) bd.onclick = showDupes;
+
+    $("tiles").innerHTML = tileData(r, c).map((t) => `
+      <button class="tile ${state.filter === t.c ? "active" : ""}" data-cat="${t.c}" style="--tc:${color(t.c)}" title="${t.c === "Trash" || t.c === "Duplicates" ? "Review duplicates" : "Show only " + t.c}">
+        <span class="t-icon">${icon(t.c)}</span>
+        <div class="t-body"><div class="t-name">${t.c === "Trash" ? (r.dry_run ? "To Trash" : "In Trash") : t.c}</div>
+          <div class="t-count">${t.count.toLocaleString()}<small>${size(t.bytes)}</small></div></div>
+      </button>`).join("");
+
+    $("cFiles").textContent = r.total.toLocaleString();
+    $("cDupes").textContent = r.groups_total.toLocaleString();
+    $("log").textContent = state.logText.trim() +
+      (r.errors.length ? "\n\nProblems:\n" + r.errors.join("\n") : "");
+    renderFiles(); renderDupes(); setTab(state.tab);
+  }
+
+  function filteredItems() {
+    const r = state.result; if (!r) return [];
+    const q = state.query.trim().toLowerCase();
+    return r.items.filter((it) => {
+      const dupNotKept = it.original && !isKeep(effState(it.src, it.dup_state));
+      if (state.filter === "Duplicates" && !it.original) return false;
+      if (state.filter && state.filter !== "Duplicates" && (it.category !== state.filter || dupNotKept)) return false;
+      if (q && !(it.name.toLowerCase().includes(q) || it.from.toLowerCase().includes(q) || it.to.toLowerCase().includes(q))) return false;
+      return true;
+    });
+  }
+
+  function renderFiles() {
+    const r = state.result; if (!r) return;
+    const items = filteredItems();
+    $("chip").hidden = state.tab !== "files" || !state.filter;
+    $("chipText").textContent = state.filter || "";
+    if (!items.length) {
+      $("tabFiles").innerHTML = `<div class="none">${r.total ? "No files match." : "Nothing to sort here."}</div>`;
+      return;
+    }
+    const shown = items.slice(0, state.shown);
+    const loc = (p) => p && p !== "." ? p : "top folder";
+    const relDest = (p) => p ? p.slice(r.dest.replace(/\/$/, "").length + 1) : "Trash";
+    $("tabFiles").innerHTML = shown.map((it) => {
+      const st = it.original ? effState(it.src, it.dup_state) : null;
+      const cat = st && !isKeep(st) ? (isGone(st) ? "Trash" : "Duplicates") : it.category;
+      // where it goes (preview, including your choice) or where it is now (after sorting)
+      let to = it.to;
+      if (r.dry_run && st === "remove") to = "Trash";
+      else if (r.dry_run && st === "keep") to = relDest(normalSpot(it.dst));
+      const toFolder = to === "Trash" ? "Trash" : (to.replace(/\/[^/]*$/, "") || to);
+      const here = r.dry_run ? it.src : it.dst;
+      return `<div class="row ${isGone(st) ? "is-removed" : ""}">
+        <span class="dot" style="--tc:${color(cat)}">${icon(cat)}</span>
+        <div class="r-main"><div class="r-name" title="${h(it.name)}">${h(it.name)}</div>
+          <div class="r-move" title="${h(it.src)} → ${h(it.dst || "Trash")}">${h(loc(it.from))} → <b>${h(toFolder)}</b></div>
+          ${it.original ? `<div class="r-same" title="${h(it.original)}">Same as ${h(pretty(it.original))}</div>` : ""}</div>
+        <span class="r-badges">${st ? badge(st) : ""}${st ? choiceButtons(it.src, st) : ""}</span>
+        <span style="display:flex; align-items:center; gap:4px;"><span class="r-size">${size(it.size)}</span>
+          ${here ? `<button class="icon-btn" title="Show in Finder" data-reveal="${h(here)}">${icon("reveal")}</button>` : `<span class="icon-btn"></span>`}</span>
+      </div>`;
+    }).join("") + (items.length > shown.length
+      ? `<button class="btn small more" id="moreBtn">Show ${Math.min(300, items.length - shown.length)} more of ${(items.length - shown.length).toLocaleString()}</button>`
+      : "") + (r.items_truncated ? `<div class="none">Showing the first ${r.items.length.toLocaleString()} files. The full list is in the log in the sorted folder.</div>` : "");
+    const mb = $("moreBtn"); if (mb) mb.onclick = () => { state.shown += 300; renderFiles(); };
+  }
+
+  const folderOf = (p) => (p || "").replace(/\/[^/]*$/, "") || "/";
+  const wb = (t) => h(t).replace(/\//g, "/<wbr>");   // paths wrap after a slash, not mid-word
+
+  // Duplicate review: for every set of identical files, show each file's name, where it is
+  // now and where it will go (or went), with Keep / Remove buttons on each duplicate.
+  function renderDupes() {
+    const r = state.result; if (!r) return;
+    if (!r.groups.length) {
+      $("tabDupes").innerHTML = `<div class="none">${opts().dedupe ? "No duplicates found." : "Duplicate checking is turned off."}</div>`;
+      return;
+    }
+    const c = dupCounts();
+    const anyChoice = Object.keys(state.choices).length > 0;
+    const bulk = r.dry_run
+      ? `<button class="btn small" data-bulk="keep">${icon("check")} Keep all</button>
+         <button class="btn small" data-bulk="remove">${icon("Trash")} Remove all</button>
+         ${anyChoice ? `<button class="btn small ghost" data-bulk="clear">Clear choices</button>` : ""}`
+      : (c.setAside ? `<button class="btn small" data-bulk="keep">${icon("check")} Keep all</button>
+         <button class="btn small" data-bulk="remove">${icon("Trash")} Remove all</button>` : "");
+    const intro = `<div class="dup-intro"><span class="t-icon">${icon("Duplicates")}</span><div style="flex:1; min-width:0">
+        <b>${plural(r.groups_total, "set")} of identical files · ${plural(c.total, "duplicate")}</b>
+        <div>${r.dry_run
+          ? `Nothing has moved yet. For each <span class="dup-t">duplicate</span>, press <b>Keep</b> to sort it like a normal file, or <b>Remove</b> to send it to the Trash when you sort. If you don't choose, it goes to the Duplicates folder. The <span class="keep-t">original</span> is always kept.`
+          : c.setAside
+            ? `${plural(c.setAside, "duplicate")} ${c.setAside === 1 ? "is" : "are"} in the Duplicates folder. <b>Keep</b> moves one into its normal folder; <b>Remove</b> sends it to the Trash now.`
+            : `Every duplicate has been dealt with.`}
+          Removed files stay in the Trash until you empty it, so you can restore them with Put Back in Finder.</div>
+        ${bulk.trim() ? `<div class="bulk">${bulk}</div>` : ""}
+      </div></div>`;
+
+    const q = state.query.trim().toLowerCase();
+    const groups = r.groups.filter((g) => !q || g.some((m) => m.original.toLowerCase().includes(q)));
+
+    const row = (m) => {
+      const st = effState(m.original, m.state);
+      const name = base(m.original);
+      const fromPath = folderOf(m.original);
+      const short = (p) => base(p) === name ? pretty(folderOf(p)) : pretty(p);
+      let l1 = r.dry_run ? "Now in" : "Was in", v1 = pretty(fromPath), f1 = fromPath;
+      let l2, v2, f2, cls2 = "";
+      if (r.dry_run) {
+        l2 = "Goes to";
+        if (st === "remove") { v2 = "Trash"; f2 = "Trash"; cls2 = "trash"; }
+        else if (st === "keep") { f2 = normalSpot(m.to); v2 = short(f2); }
+        else if (m.to) { f2 = m.to; v2 = short(m.to); }
+        else { f2 = m.original; v2 = "Stays where it is (already sorted)"; cls2 = "muted"; }
+      } else {
+        l2 = "Now in";
+        if (st === "removed") { v2 = "Trash (restore with Put Back in Finder)"; f2 = "Trash"; cls2 = "trash"; }
+        else if (st === "unsorted") { v2 = "Not sorted yet"; f2 = m.original; cls2 = "muted"; l1 = "Now in"; }
+        else { f2 = m.path; v2 = short(m.path); }
+      }
+      const rowCls = isGone(st) ? "is-removed" : isKeep(st) ? "is-kept" : st === "duplicate" ? "is-dup" : "";
+      const here = st === "removed" ? null : (r.dry_run || st === "unsorted" ? m.original : m.path);
+      return `<div class="drow ${rowCls}">
+          ${badge(st)}
+          <div class="r-main">
+            <div class="r-name" title="${h(m.original)}">${h(name)}</div>
+            <div class="loc"><span class="lbl">${l1}</span><span class="val" title="${h(f1)}">${wb(v1)}</span></div>
+            <div class="loc"><span class="lbl">${l2}</span><span class="val ${cls2}" title="${h(f2)}">${wb(v2)}</span></div>
+          </div>
+          <div class="d-actions">
+            ${st !== "original" ? choiceButtons(m.original, st) : ""}
+            ${here ? `<button class="icon-btn" title="Show in Finder" data-reveal="${h(here)}">${icon("reveal")}</button>` : ""}
+          </div>
+        </div>`;
+    };
+
+    $("tabDupes").innerHTML = intro + (groups.map((g) => `
+      <div class="group">
+        <div class="group-head">
+          <span class="dot" style="--tc:${color(g[0].category)}">${icon(g[0].category)}</span>
+          <span class="g-name"><b>${h(base(g[0].original))}</b></span>
+          <span>${g.length} copies · ${size(g[0].size)} each</span>
+        </div>
+        ${g.map(row).join("")}
+      </div>`).join("") || `<div class="none">No duplicates match your search.</div>`) +
+      (r.groups_total > r.groups.length
+        ? `<div class="none">Showing the first ${r.groups.length.toLocaleString()} of ${r.groups_total.toLocaleString()} sets. The full list is in the duplicates report after sorting.</div>` : "");
+  }
+
+  // ---- acting on Keep / Remove ----
+  function currentPath(src) {
+    const r = state.result;
+    const it = r.items.find((i) => i.src === src);
+    if (it) return it.dst;
+    for (const g of r.groups) for (const m of g) if (m.original === src) return m.path;
+    return null;
+  }
+
+  function markDone(src, st, newPath) {
+    const r = state.result;
+    const relDest = (p) => p ? p.slice(r.dest.replace(/\/$/, "").length + 1) : "Trash";
+    for (const it of r.items) if (it.src === src) {
+      it.dup_state = st; it.dst = newPath; it.to = relDest(newPath); it.kind = st === "removed" ? "remove" : "file";
+    }
+    for (const g of r.groups) for (const m of g) if (m.original === src) { m.state = st; m.path = newPath; }
+  }
+
+  // After sorting: do it now, through the server.
+  async function applyNow(srcs, action) {
+    const r = state.result;
+    const pairs = srcs.map((src) => [src, currentPath(src)]).filter(([, p]) => p);
+    if (!pairs.length) return;
+    try {
+      const { results } = await api("/api/dup-action", { paths: pairs.map(([, p]) => p), action, log_file: r.log_file });
+      for (const [src, p] of pairs) markDone(src, action === "remove" ? "removed" : "kept", results[p] ?? null);
+      toast(action === "remove"
+        ? `${plural(pairs.length, "duplicate")} moved to the Trash.`
+        : `${plural(pairs.length, "duplicate")} kept and moved to ${pairs.length === 1 ? "its" : "their"} normal folder.`);
+    } catch (e) { toast(e.message, true); }
+    renderResult();
+  }
+
+  async function handleChoice(src, choice) {
+    const r = state.result; if (!r) return;
+    if (r.dry_run) {
+      if (state.choices[src] === choice) delete state.choices[src]; else state.choices[src] = choice;
+      renderResult();
+    } else {
+      await applyNow([src], choice);
+    }
+  }
+
+  async function handleBulk(action) {
+    const r = state.result; if (!r) return;
+    if (r.dry_run) {
+      if (action === "clear") state.choices = {};
+      else for (const it of dupItems()) if (it.dup_state === "duplicate") state.choices[it.src] = action;
+      renderResult(); return;
+    }
+    const srcs = dupItems().filter((it) => it.dup_state === "duplicate").map((it) => it.src);
+    if (!srcs.length) return;
+    if (action === "remove") {
+      const ok = await confirmBox({
+        title: `Move ${plural(srcs.length, "duplicate")} to the Trash?`,
+        body: "The originals stay in your sorted folders. You can get removed files back from the Trash with Put Back until you empty it.",
+        ok: "Move to Trash", danger: true,
+      });
+      if (!ok) return;
+    }
+    await applyNow(srcs, action);
+  }
+
+  function showDupes() {
+    state.query = ""; $("search").value = ""; renderDupes(); renderFiles();
+    setTab("dupes");
+    $("detailArea").scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function setTab(t) {
+    state.tab = t;
+    document.querySelectorAll(".tab").forEach((b) => b.classList.toggle("active", b.dataset.tab === t));
+    $("tabFiles").hidden = t !== "files"; $("tabDupes").hidden = t !== "dupes"; $("tabLog").hidden = t !== "log";
+    $("searchBox").hidden = t === "log";
+    $("chip").hidden = t !== "files" || !state.filter;
+  }
+
+  // ---------- actions ----------
+  async function runNow() {
+    const o = opts();
+    const r = state.result;
+    const n = r && r.dry_run ? r.total : null;
+    const verb = o.copy ? "copied" : "moved";
+    const toTrash = Object.values(state.choices).filter((v) => v === "remove").length;
+    const ok = await confirmBox({
+      title: n !== null ? `Sort ${plural(n, "file")}?` : "Sort this folder?",
+      body: `Files will be ${verb} into the folder below.` +
+            (o.dedupe ? " Duplicates go to a Duplicates folder there." : "") +
+            (toTrash
+              ? `<br><br><b>${plural(toTrash, "duplicate")} you marked Remove will go to the Trash.</b> You can get them back with Put Back until you empty the Trash. Everything else can be undone afterwards.`
+              : " Nothing is deleted, and you can undo this afterwards."),
+      path: tilde(o.dest),
+      ok: "Sort now",
+    });
+    if (!ok) return;
+    $("modalRoot").innerHTML = "";
+    startJob("run");
+  }
+
+  async function undoNow() {
+    if (!state.undoLog) { await refreshUndo(); }
+    if (!state.undoLog) { toast("There's nothing to undo.", true); return; }
+    const ok = await confirmBox({
+      title: "Undo the last run?",
+      body: `${plural(state.undoLog.count, "file")} will go back to where they were before sorting.`,
+      ok: "Undo",
+    });
+    if (ok) startJob("undo", { log_file: state.undoLog.log_file });
+  }
+
+  // ---------- wiring ----------
+  $("srcCard").onclick = () => pick("src");
+  $("destChange").onclick = () => pick("dest");
+  $("previewBtn").onclick = () => startJob("preview");
+  $("runBtn").onclick = runNow;
+  $("undoTop").onclick = undoNow;
+
+  async function stopNow() {
+    if (!state.busy || $("stopBtn").hidden || $("stopBtn").disabled) return;
+    $("stopBtn").disabled = true; $("stopLabel").textContent = "Stopping…";
+    $("workTitle").textContent = "Stopping…";
+    try { await api("/api/stop", {}); } catch (e) { toast(e.message, true); }
+  }
+  $("stopBtn").onclick = stopNow;
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && state.busy && !$("modalRoot").innerHTML) stopNow();
+  });
+  $("chipX").onclick = () => { state.filter = null; state.shown = 300; renderResult(); };
+  $("search").oninput = (e) => { state.query = e.target.value; state.shown = 300; renderFiles(); renderDupes(); };
+  document.querySelectorAll(".tab").forEach((b) => b.onclick = () => setTab(b.dataset.tab));
+  ["optDedupe","optRecursive","optDate","optCopy"].forEach((id) => $(id).onchange = () => {
+    store.set("opts", opts());
+    if (state.result && state.result.dry_run) { state.result = null; showView("empty"); }
+  });
+  document.addEventListener("click", (e) => {
+    const ch = e.target.closest("[data-choice]");
+    if (ch) { handleChoice(ch.dataset.src, ch.dataset.choice); return; }
+    const bk = e.target.closest("[data-bulk]");
+    if (bk) { handleBulk(bk.dataset.bulk); return; }
+    const tile = e.target.closest(".tile");
+    if (tile && (tile.dataset.cat === "Duplicates" || tile.dataset.cat === "Trash")) { showDupes(); return; }
+    if (tile) {
+      state.filter = state.filter === tile.dataset.cat ? null : tile.dataset.cat;
+      state.shown = 300; renderResult(); setTab("files"); return;
+    }
+    const rv = e.target.closest("[data-reveal]");
+    if (rv) { api("/api/reveal", { path: rv.dataset.reveal, select: true }).catch((err) => toast(err.message, true)); return; }
+    const op = e.target.closest("[data-open]");
+    if (op) { api("/api/reveal", { path: op.dataset.open, select: false }).catch((err) => toast(err.message, true)); }
+  });
+
+  SX.ready.then((d) => {
+    if (d.have_pil === false) $("dateDesc").textContent = "For example Images/2019/07-July, by file date.";
+    renderFolders();
+  });
+
+  // restore last session
+  const f = store.get("folders");
+  if (f && f.source) Object.assign(state, { source: f.source, dest: f.dest || f.source + "/Sorted", destTouched: !!f.destTouched });
+  const o = store.get("opts");
+  if (o) { $("optDedupe").checked = o.dedupe !== false; $("optRecursive").checked = o.recursive !== false;
+           $("optDate").checked = !!o.by_date; $("optCopy").checked = !!o.copy; }
+  SX.ready.then(refreshUndo);
+  renderFolders();
+})();
+</script>
+</body>
+</html>

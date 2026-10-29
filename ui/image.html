@@ -1,0 +1,736 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>.Image · Sort X</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23ff5f8a'/%3E%3Cstop offset='1' stop-color='%23ff9f43'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='64' height='64' rx='16' fill='url(%23g)'/%3E%3Ctext x='32' y='41' font-family='-apple-system,Helvetica,Arial,sans-serif' font-size='24' font-weight='800' text-anchor='middle' fill='white'%3E.Im%3C/text%3E%3C/svg%3E">
+<script>
+  // Saved settings are filled in by the Sort X server.
+  window.SORTX_SETTINGS = /*__SETTINGS__*/null;
+</script>
+<link rel="stylesheet" href="/common.css">
+<script src="/common.js"></script>
+<style>
+/* .Image accents */
+body[data-app="image"] { --accent: #f2557f; --accent-hover: #e0446e; --accent-weak: rgba(242, 85, 127, .11); }
+:root[data-theme="dark"] body[data-app="image"] { --accent: #ff7096; --accent-hover: #ff86a6; --accent-weak: rgba(255,112,150,.16); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) body[data-app="image"] { --accent: #ff7096; --accent-hover: #ff86a6; --accent-weak: rgba(255,112,150,.16); }
+}
+.scan-btn { width: 100%; }
+
+/* how-similar picker */
+.levels { margin: 4px 8px 6px; }
+.levels[hidden] { display: none; }
+.seg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; padding: 3px; border-radius: 10px;
+       background: var(--surface-3); border: 1px solid var(--border); }
+.seg button { height: 30px; border: 0; border-radius: 8px; background: transparent; cursor: pointer;
+              font-size: 12.5px; font-weight: 600; color: var(--muted); }
+.seg button:hover { color: var(--text); }
+.seg button.on { background: var(--surface); color: var(--text); box-shadow: var(--shadow); }
+.level-desc { font-size: 12.5px; color: var(--muted); margin-top: 7px; min-height: 36px; }
+.level-desc.warn { color: var(--warn); }
+
+/* stats */
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; }
+.stat { padding: 10px 12px; border-radius: 11px; background: var(--surface-2); border: 1px solid var(--border); }
+.stat .s-label { font-size: 12px; color: var(--muted); font-weight: 550; }
+.stat .s-value { font-size: 19px; font-weight: 700; letter-spacing: -.01em; }
+
+/* sets */
+.note { display: flex; gap: 12px; align-items: flex-start; padding: 12px 14px; margin: 12px 0; border-radius: 12px;
+        background: var(--surface-2); border: 1px solid var(--border); font-size: 13px; color: var(--muted); }
+.note b { color: var(--text); }
+.note .t-icon { width: 32px; height: 32px; border-radius: 9px; display: grid; place-items: center; flex: none;
+                color: var(--accent); background: var(--accent-weak); }
+.note .t-icon svg.i { width: 16px; height: 16px; }
+.set { border: 1px solid var(--border); border-radius: 14px; margin-bottom: 14px; overflow: hidden; }
+.set-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 14px; background: var(--surface-2);
+            border-bottom: 1px solid var(--border); font-size: 12.5px; color: var(--muted); }
+.set-head b { color: var(--text); font-size: 13.5px; }
+.set-head .grow { flex: 1; }
+.set-tag { font-size: 11.5px; padding: 2px 8px; border-radius: 20px; background: var(--surface-3); color: var(--muted); font-weight: 600; }
+.set-tag.diff { background: var(--warn-weak); color: var(--warn); }
+
+.pics { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; padding: 12px; }
+.pics.small { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); padding: 12px 0; }
+.pic { border: 1px solid var(--border); border-radius: 12px; overflow: hidden; background: var(--surface);
+       display: flex; flex-direction: column; min-width: 0; transition: border-color .15s, opacity .15s; }
+.pic.st-original, .pic.st-best { border-color: color-mix(in srgb, var(--ok) 50%, transparent); }
+.pic.st-duplicate { border-color: color-mix(in srgb, var(--danger) 40%, transparent); }
+.pic.st-similar { border-color: color-mix(in srgb, var(--warn) 45%, transparent); }
+.pic.st-kept { border-color: color-mix(in srgb, var(--ok) 35%, transparent); }
+.pic.st-removed { opacity: .75; }
+.thumb { position: relative; display: block; width: 100%; aspect-ratio: 4 / 3; padding: 0; border: 0; cursor: zoom-in;
+         background-color: var(--surface-2);
+         background-image: linear-gradient(45deg, var(--surface-3) 25%, transparent 25%, transparent 75%, var(--surface-3) 75%),
+                           linear-gradient(45deg, var(--surface-3) 25%, transparent 25%, transparent 75%, var(--surface-3) 75%);
+         background-size: 16px 16px; background-position: 0 0, 8px 8px; }
+.thumb img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.thumb .broken { position: absolute; inset: 0; display: grid; place-items: center; color: var(--faint); font-size: 12px; }
+.pic.st-removed .thumb img { opacity: .3; filter: grayscale(1); }
+.pic-badge { position: absolute; top: 8px; left: 8px; box-shadow: 0 1px 4px rgba(0,0,0,.15); }
+.badge.keep.solid { background: var(--ok); color: #fff; }
+.badge.dup.solid { background: var(--danger); color: #fff; }
+.badge.sim { color: var(--warn); background: var(--warn-weak); }
+.badge.sim.solid { background: var(--warn); color: #fff; }
+.badge.gone.solid { background: rgba(60,60,67,.85); color: #fff; }
+.pic-body { padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.pic-name { font-weight: 600; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pic-loc, .pic-meta { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pic-meta b { color: var(--text); font-weight: 600; }
+.pic-note { font-size: 11.5px; color: var(--warn); font-weight: 550; }
+.pic-actions { display: flex; align-items: center; gap: 6px; margin-top: auto; padding-top: 9px; flex-wrap: wrap; }
+.pic-actions .spacer { flex: 1; }
+.linkish { background: none; border: 0; color: var(--accent); font-size: 12px; font-weight: 600; cursor: pointer; padding: 2px 0; text-align: left; }
+.linkish:hover { text-decoration: underline; }
+.kept-label { font-size: 12px; color: var(--ok); font-weight: 600; display: inline-flex; align-items: center; gap: 4px; }
+.kept-label svg.i { width: 14px; height: 14px; }
+.btn.tiny { height: 26px; padding: 0 9px; font-size: 12px; border-radius: 7px; gap: 5px; }
+.btn.tiny svg.i { width: 13px; height: 13px; }
+.small .pic-body { padding: 8px 10px 10px; }
+
+/* viewer */
+.viewer { position: fixed; inset: 0; z-index: 55; display: grid; grid-template-columns: minmax(0, 1fr) 330px;
+          background: rgba(12, 12, 14, .97); animation: fade .15s; }
+.v-stage { position: relative; display: grid; place-items: center; padding: 28px 70px; min-height: 0; min-width: 0; }
+.v-stage img { max-width: 100%; max-height: calc(100vh - 56px); object-fit: contain; border-radius: 6px;
+               box-shadow: 0 10px 40px rgba(0,0,0,.5); background: #fff; }
+.v-nav { position: absolute; top: 50%; transform: translateY(-50%); width: 46px; height: 46px; border-radius: 50%; border: 0;
+         background: rgba(255,255,255,.12); color: #fff; cursor: pointer; display: grid; place-items: center; }
+.v-nav:hover { background: rgba(255,255,255,.22); }
+.v-nav:disabled { opacity: .25; cursor: default; }
+.v-prev { left: 14px; } .v-next { right: 14px; }
+.v-nav svg.i { width: 22px; height: 22px; }
+.v-count { position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%); color: rgba(255,255,255,.75); font-size: 12.5px; }
+.v-side { background: var(--surface); color: var(--text); padding: 20px; overflow: auto; display: flex; flex-direction: column; gap: 14px; }
+.v-top { display: flex; align-items: flex-start; gap: 10px; }
+.v-top h3 { margin: 0; font-size: 16px; flex: 1; word-break: break-word; }
+.v-rows { display: grid; grid-template-columns: 78px minmax(0, 1fr); gap: 6px 10px; font-size: 13px; }
+.v-rows .k { color: var(--faint); }
+.v-rows .v { overflow-wrap: anywhere; }
+.v-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.v-hint { font-size: 12px; color: var(--muted); }
+@media (max-width: 760px) {
+  .viewer { grid-template-columns: 1fr; grid-template-rows: minmax(0, 1fr) auto; }
+  .v-stage { padding: 16px 56px; }
+  .v-side { max-height: 45vh; }
+}
+</style>
+</head>
+<body data-app="image">
+<div class="app">
+  <header class="top"></header>
+
+  <div class="grid">
+    <!-- ================= setup ================= -->
+    <aside class="panel setup">
+      <div>
+        <p class="section-title">Pictures folder</p>
+        <button class="folder-card" id="srcCard" type="button">
+          <div class="folder-icon"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-5-5L5 21"/></svg></div>
+          <div class="folder-text">
+            <div class="folder-name" id="srcName">Choose a folder…</div>
+            <div class="folder-path" id="srcPath"><bdi>Click to pick a folder of pictures</bdi></div>
+          </div>
+        </button>
+      </div>
+
+      <div>
+        <p class="section-title">Find</p>
+        <div class="opts">
+          <label class="opt" title="Always on">
+            <div class="opt-text"><div class="opt-title">Exact duplicates</div>
+              <div class="opt-desc">The same picture, pixel for pixel, even with a different name, metadata or file type.</div></div>
+            <span class="switch"><input type="checkbox" checked disabled><span class="track"></span></span>
+          </label>
+          <label class="opt">
+            <div class="opt-text"><div class="opt-title">Similar pictures</div>
+              <div class="opt-desc">Look-alikes that aren't identical: resized, re-saved or edited copies.</div></div>
+            <span class="switch"><input type="checkbox" id="optSimilar" checked><span class="track"></span></span>
+          </label>
+          <div class="levels" id="levels">
+            <div class="seg" role="radiogroup" aria-label="How similar">
+              <button type="button" data-level="strict" role="radio">Very close</button>
+              <button type="button" data-level="balanced" role="radio">Close</button>
+              <button type="button" data-level="loose" role="radio">Loosely alike</button>
+            </div>
+            <div class="level-desc" id="levelDesc"></div>
+          </div>
+          <label class="opt">
+            <div class="opt-text"><div class="opt-title">Include subfolders</div>
+              <div class="opt-desc">Also look at pictures in folders inside this folder.</div></div>
+            <span class="switch"><input type="checkbox" id="optRecursive" checked><span class="track"></span></span>
+          </label>
+        </div>
+      </div>
+
+      <button class="btn primary scan-btn" id="scanBtn" type="button">
+        <svg class="i" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        Scan pictures
+      </button>
+      <p class="hint">Scanning only looks. Nothing changes until you press Remove on a picture.</p>
+    </aside>
+
+    <!-- ================= results ================= -->
+    <section class="panel results">
+      <div class="empty" id="emptyView">
+        <div class="empty-art"><svg class="i" viewBox="0 0 24 24"><rect x="8" y="8" width="13" height="13" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/></svg></div>
+        <h2>Find duplicate and similar pictures</h2>
+        <p>Choose a folder and click <b>Scan</b>. <b>Exact duplicates</b> show the same pixels. <b>Similar pictures</b>
+           look alike but differ a little, like a smaller copy or an edited version.</p>
+      </div>
+
+      <div class="working" id="workView" hidden>
+        <h2 id="workTitle">Looking at your pictures…</h2>
+        <div class="bar indet" id="workBar"><div></div></div>
+        <div class="meta"><span id="workPhase">Starting</span><span id="workCount"></span></div>
+        <div class="work-actions">
+          <button class="btn stop" id="stopBtn" type="button" title="Stop (Esc)">
+            <svg class="i" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+            <span id="stopLabel">Stop</span>
+          </button>
+          <p class="hint">Stopping a scan changes nothing.</p>
+        </div>
+      </div>
+
+      <div id="resultView" hidden style="display:flex; flex-direction:column; gap:16px;">
+        <div class="banner" id="banner"></div>
+        <div class="stats" id="stats"></div>
+        <div id="detailArea">
+          <div class="tabs-row">
+            <div class="tabs" role="tablist">
+              <button class="tab active" data-tab="exact">Exact duplicates <span class="count" id="cExact">0</span></button>
+              <button class="tab" data-tab="similar">Similar <span class="count" id="cSimilar">0</span></button>
+              <button class="tab" data-tab="all">All pictures <span class="count" id="cAll">0</span></button>
+              <button class="tab" data-tab="log">Details</button>
+            </div>
+            <label class="search" id="searchBox">
+              <svg class="i" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+              <input id="search" placeholder="Search pictures" autocomplete="off">
+            </label>
+          </div>
+          <div id="tabExact"></div>
+          <div id="tabSimilar" hidden></div>
+          <div id="tabAll" hidden></div>
+          <div id="tabLog" hidden style="padding-top:12px;"><pre class="log" id="log"></pre></div>
+        </div>
+      </div>
+    </section>
+  </div>
+  <div class="foot">Runs only on this Mac. Close this window when you're done.</div>
+</div>
+
+<div id="viewerRoot"></div>
+<div id="modalRoot"></div>
+<div id="toastRoot"></div>
+
+<script>
+(() => {
+  "use strict";
+  const { $, icon, h, size, plural, base, tilde, date, api, store, toast, confirmBox, withToken } = SX;
+
+  // Every picture is one shared object, so the tabs and the viewer always agree. Its fields:
+  //   state   exact duplicates:  original | duplicate | kept     (group  = which exact set)
+  //   sstate  similar pictures:  best | similar | kept           (sgroup = which similar set)
+  //   removed / trashed          moved to the Trash (and where, so it can be restored)
+  const state = {
+    source: "", level: "balanced", result: null, byPath: {}, exact: [], similar: [],
+    tab: "exact", query: "", shownAll: 120, busy: false, logText: "",
+    viewer: null,   // { list, index, ctx }
+  };
+
+  const LEVELS = {
+    strict:   { text: "Resized, re-compressed or re-saved copies of the same picture." },
+    balanced: { text: "Also brightness or contrast changes, watermarks, small crops and dark/light versions." },
+    loose:    { text: "Also black-and-white or recoloured copies and bigger crops. May group different photos that look alike, so check these sets.", warn: true },
+  };
+  const LEVEL_NAME = { strict: "Very close", balanced: "Close", loose: "Loosely alike" };
+
+  // ---------- small helpers ----------
+  const folderOf = (p) => (p || "").replace(/\/[^/]*$/, "") || "/";
+  const pretty = (p) => {
+    const r = (state.result && state.result.source) || state.source;
+    if (r && p && (p === r || p.startsWith(r.replace(/\/$/, "") + "/"))) return base(r) + p.slice(r.replace(/\/$/, "").length);
+    return tilde(p);
+  };
+  const thumbUrl = (p, s = 400) => withToken(`/api/thumb?s=${s}&path=${encodeURIComponent(p)}`);
+  const kind = (p) => (p.split(".").pop() || "").toUpperCase();
+  const dims = (m) => m.width ? `${m.width} × ${m.height}` : "";
+  const copies = (n) => `${n} ${n === 1 ? "copy" : "copies"}`;
+
+  // what a picture is in each context
+  const stateIn = (m, ctx) => {
+    if (m.removed) return "removed";
+    if (ctx === "exact") return m.state || null;
+    if (ctx === "similar") return m.sstate || null;
+    return m.state || m.sstate || null;
+  };
+  const ctxOf = (m, ctx) => ctx === "all" ? (m.state ? "exact" : m.sstate ? "similar" : "all") : ctx;
+  function badgeFor(m, ctx) {
+    const st = stateIn(m, ctx), c = ctxOf(m, ctx);
+    if (!st) return null;
+    if (st === "removed") return ["gone", "In Trash"];
+    if (st === "kept") return ["keep", "Kept"];
+    if (c === "exact") return st === "original" ? ["keep", "Original"] : ["dup", "Duplicate"];
+    return st === "best" ? ["keep", "Best quality"] : ["sim", `Similar · ${m.likeness ?? "?"}%`];
+  }
+
+  // ---------- options ----------
+  function renderOptions() {
+    $("levels").hidden = !$("optSimilar").checked;
+    document.querySelectorAll(".seg button").forEach((b) => {
+      const on = b.dataset.level === state.level;
+      b.classList.toggle("on", on); b.setAttribute("aria-checked", on);
+    });
+    $("levelDesc").textContent = LEVELS[state.level].text;
+    $("levelDesc").classList.toggle("warn", !!LEVELS[state.level].warn);
+  }
+  function saveSettings() {
+    store.set("image", { source: state.source, recursive: $("optRecursive").checked,
+                         similar: $("optSimilar").checked, level: state.level });
+  }
+
+  // ---------- folder ----------
+  function renderFolder() {
+    const has = !!state.source;
+    $("srcCard").classList.toggle("chosen", has);
+    $("srcName").textContent = has ? base(state.source) : "Choose a folder…";
+    $("srcPath").innerHTML = `<bdi>${h(has ? tilde(state.source) : "Click to pick a folder of pictures")}</bdi>`;
+    $("scanBtn").disabled = !has || state.busy;
+  }
+  async function pick() {
+    try {
+      const { path } = await api("/api/pick", { which: "image", start: state.source || "" });
+      if (!path) return;
+      state.source = path; state.result = null; showView("empty");
+      saveSettings(); renderFolder();
+    } catch (e) { toast(e.message, true); }
+  }
+
+  // ---------- scanning ----------
+  function showView(v) {
+    $("emptyView").hidden = v !== "empty";
+    $("workView").hidden = v !== "work";
+    $("resultView").hidden = v !== "result";
+  }
+  function setBusy(b) { state.busy = b; $("srcCard").disabled = b; renderFolder(); }
+
+  async function scan() {
+    if (state.busy || !state.source) return;
+    setBusy(true);
+    closeViewer();
+    $("workTitle").textContent = "Looking at your pictures…";
+    $("workPhase").textContent = "Starting"; $("workCount").textContent = "";
+    $("workBar").classList.add("indet"); $("workBar").firstElementChild.style.width = "";
+    $("stopBtn").disabled = false; $("stopLabel").textContent = "Stop";
+    showView("work");
+    state.logText = "";
+    try {
+      const { job } = await api("/api/start", {
+        mode: "image-scan", source: state.source, recursive: $("optRecursive").checked,
+        similar: $("optSimilar").checked, sensitivity: state.level,
+      });
+      await poll(job);
+    } catch (e) {
+      toast(e.message, true);
+      showView(state.result ? "result" : "empty");
+    } finally { setBusy(false); }
+  }
+
+  async function poll() {
+    let since = 0;
+    for (;;) {
+      const s = await api(`/api/job?since=${since}`);
+      if (s.log && s.log.length) { state.logText += s.log.join("\n") + "\n"; since = s.log_len; }
+      $("workPhase").textContent = s.phase || "Working";
+      const bar = $("workBar");
+      if (s.total > 0) {
+        bar.classList.remove("indet");
+        bar.firstElementChild.style.width = Math.min(100, (s.done / s.total) * 100) + "%";
+        $("workCount").textContent = `${s.done.toLocaleString()} of ${s.total.toLocaleString()}`;
+      } else { bar.classList.add("indet"); $("workCount").textContent = ""; }
+      if (s.stopping) { $("workTitle").textContent = "Stopping…"; $("stopBtn").disabled = true; $("stopLabel").textContent = "Stopping…"; }
+      if (s.state === "done") {
+        adopt(s.result);
+        state.query = ""; $("search").value = "";
+        state.tab = state.exact.length || !state.similar.length ? "exact" : "similar";
+        renderResult(); return;
+      }
+      if (s.state === "cancelled") { toast("Scan stopped. Nothing was changed."); if (state.result) renderResult(); else showView("empty"); return; }
+      if (s.state === "error") throw new Error(s.error || "Something went wrong.");
+      await new Promise((r) => setTimeout(r, 250));
+    }
+  }
+  async function stopNow() {
+    if (!state.busy || $("stopBtn").disabled) return;
+    $("stopBtn").disabled = true; $("stopLabel").textContent = "Stopping…"; $("workTitle").textContent = "Stopping…";
+    try { await api("/api/stop", {}); } catch (e) { toast(e.message, true); }
+  }
+
+  function adopt(res) {
+    const byPath = {};
+    for (const p of res.pictures) { p.removed = false; p.trashed = null; byPath[p.path] = p; }
+    const link = (sets) => (sets || []).map((g) => g.map((m) => byPath[m.path] || Object.assign(m, { removed: false })));
+    Object.assign(state, { result: res, byPath, exact: link(res.groups), similar: link(res.similar), shownAll: 120 });
+  }
+
+  function counts() {
+    const c = { dup: 0, dupBytes: 0, sim: 0, simBytes: 0, removed: 0, removedBytes: 0 };
+    for (const g of state.exact) for (const m of g) if (!m.removed && m.state === "duplicate") { c.dup++; c.dupBytes += m.size; }
+    for (const g of state.similar) for (const m of g) if (!m.removed && m.sstate === "similar") { c.sim++; c.simBytes += m.size; }
+    for (const m of Object.values(state.byPath)) if (m.removed) { c.removed++; c.removedBytes += m.size; }
+    return c;
+  }
+
+  // ---------- rendering ----------
+  function renderResult() {
+    const r = state.result;
+    showView("result");
+    const c = counts();
+    const nExact = state.exact.length, nSim = state.similar.length;
+    let cls, ic, title, sub, actions = "";
+    if (!r.pictures.length) {
+      cls = "info"; ic = "eye"; title = "No pictures found";
+      sub = "There are no pictures in this folder" + ($("optRecursive").checked ? " or its subfolders." : ".");
+    } else if (!nExact && !nSim) {
+      cls = "ok"; ic = "check"; title = "No duplicates or similar pictures";
+      sub = `${plural(r.pictures.length, "picture")} checked. Every one is unique` +
+            (r.similar_checked ? ` (look-alike matching: ${LEVEL_NAME[r.sensitivity]}).` : ".");
+    } else if (c.dup || c.sim) {
+      cls = "warn"; ic = "Duplicates";
+      const parts = [];
+      if (c.dup) parts.push(plural(c.dup, "exact duplicate"));
+      if (c.sim) parts.push(plural(c.sim, "similar picture"));
+      title = parts.join(" and ") + " found";
+      sub = (c.dup ? `Removing the exact duplicates frees ${size(c.dupBytes)}. ` : "") +
+            (c.sim ? "Similar pictures differ a little, so look at each set before removing. " : "") +
+            (c.removed ? `${plural(c.removed, "picture")} already in the Trash.` : "");
+      if (c.dup) actions = `<button class="btn small danger" data-act="remove-exact">${icon("Trash")} Remove all exact duplicates</button>`;
+    } else {
+      cls = "ok"; ic = "check"; title = "All done";
+      sub = c.removed ? `${plural(c.removed, "picture")} moved to the Trash (${size(c.removedBytes)} freed).` : "Everything you looked at is marked Keep.";
+    }
+    actions += `<button class="btn small" data-act="open-folder">${icon("folder")} Open folder</button>`;
+    $("banner").className = "banner " + cls;
+    $("banner").innerHTML = `<div class="b-icon">${icon(ic)}</div>
+      <div class="b-text"><div class="b-title">${h(title)}</div><div class="b-sub">${h(sub)}</div></div>
+      <div class="b-actions">${actions}</div>`;
+
+    $("stats").innerHTML = [
+      ["Pictures checked", r.pictures.length.toLocaleString()],
+      ["Exact duplicates", c.dup.toLocaleString()],
+      ["Similar pictures", r.similar_checked ? c.sim.toLocaleString() : "Off"],
+      ["Space to free", size(c.dupBytes)],
+    ].map(([k, v]) => `<div class="stat"><div class="s-label">${k}</div><div class="s-value">${v}</div></div>`).join("");
+
+    $("cExact").textContent = nExact.toLocaleString();
+    $("cSimilar").textContent = r.similar_checked ? nSim.toLocaleString() : "off";
+    $("cAll").textContent = r.pictures.length.toLocaleString();
+    $("log").textContent = state.logText.trim() + (r.errors.length ? "\n\nNotes:\n" + r.errors.join("\n") : "");
+    renderExact(); renderSimilar(); renderAll(); setTab(state.tab);
+  }
+
+  const matches = (m) => { const q = state.query.trim().toLowerCase(); return !q || m.path.toLowerCase().includes(q); };
+
+  function picActions(m, ctx) {
+    const st = stateIn(m, ctx);
+    const c = ctxOf(m, ctx);
+    const reveal = !m.removed ? `<button class="icon-btn" title="Show in Finder" data-act="reveal" data-path="${h(m.path)}">${icon("reveal")}</button>` : "";
+    if (st === "removed") {
+      return m.trashed
+        ? `<button class="btn tiny" data-act="restore" data-path="${h(m.path)}">${icon("restore")} Restore</button><span class="spacer"></span>`
+        : `<span class="v-hint">In the Trash. Use Put Back in Finder to restore.</span>`;
+    }
+    if (st === "original" || st === "best") return `<span class="kept-label">${icon("check")}Keep</span><span class="spacer"></span>${reveal}`;
+    if (!st) return `<span class="spacer"></span>${reveal}`;
+    const k = st === "kept";
+    return `<div class="choice" role="group" aria-label="Keep or remove this picture">
+        <button class="cbtn keep ${k ? "on" : ""}" data-act="keep" data-ctx="${c}" data-path="${h(m.path)}" aria-pressed="${k}" title="Keep this picture">${icon("check")}Keep</button>
+        <button class="cbtn remove" data-act="remove" data-path="${h(m.path)}" title="Send this picture to the Trash">${icon("Trash")}Remove</button>
+      </div><span class="spacer"></span>${reveal}`;
+  }
+
+  function picCard(m, ctx, small = false) {
+    const b = badgeFor(m, ctx);
+    const badge = b ? `<span class="badge pic-badge solid ${b[0]}">${b[1]}</span>` : "";
+    const st = stateIn(m, ctx);
+    const meta = ctx === "similar"
+      ? [dims(m) ? `<b>${dims(m)}</b>` : "", size(m.size), kind(m.path)].filter(Boolean).join(" · ")
+      : h([size(m.size), m.mtime ? date(m.mtime) : "", kind(m.path)].filter(Boolean).join(" · "));
+    const promote = !small && !m.removed && (st === "duplicate" || st === "similar" || st === "kept")
+      ? `<button class="linkish" data-act="promote" data-ctx="${ctxOf(m, ctx)}" data-path="${h(m.path)}">${ctx === "similar" ? "Make this the one to keep" : "Make this the original"}</button>` : "";
+    return `<div class="pic st-${st || "none"}">
+        <button class="thumb" data-act="view" data-ctx="${ctx}" data-path="${h(m.path)}" title="View ${h(base(m.path))}">
+          <img loading="lazy" decoding="async" alt="${h(base(m.path))}" src="${h(thumbUrl(m.path, small ? 300 : 420))}"
+               onerror="this.style.display='none'; this.insertAdjacentHTML('afterend','<span class=&quot;broken&quot;>No preview</span>')">
+          ${badge}
+        </button>
+        <div class="pic-body">
+          <div class="pic-name" title="${h(m.path)}">${h(base(m.path))}</div>
+          <div class="pic-loc" title="${h(folderOf(m.path))}">${h(pretty(folderOf(m.path)))}</div>
+          ${small ? "" : `<div class="pic-meta">${meta}</div>`}
+          ${!small && ctx === "exact" && st && st !== "original" && m.same_file === false ? `<div class="pic-note">Same picture, different file</div>` : ""}
+          ${small ? "" : `<div class="pic-actions">${picActions(m, ctx)}</div>`}
+          ${promote}
+        </div>
+      </div>`;
+  }
+
+  function renderExact() {
+    const r = state.result; if (!r) return;
+    if (!state.exact.length) {
+      $("tabExact").innerHTML = `<div class="none">${r.pictures.length ? "No exact duplicates. No two pictures are pixel-for-pixel the same." : "No pictures found."}</div>`;
+      return;
+    }
+    const note = `<div class="note"><span class="t-icon">${icon("Duplicates")}</span><div>
+        <b>Each set is the same picture, pixel for pixel.</b> The <b>Original</b> is the copy with the clearest name
+        (then the oldest). For each <b>Duplicate</b>: <b>Keep</b> leaves it, <b>Remove</b> sends it to the Trash, <b>Restore</b> brings it back.
+        Click a picture to see it full size.</div></div>`;
+    const sets = state.exact.map((g, gi) => ({ g, gi })).filter(({ g }) => g.some(matches));
+    $("tabExact").innerHTML = note + (sets.map(({ g, gi }) => {
+      const first = g.find((m) => m.state === "original") || g[0];
+      const allSame = g.every((m) => m.same_file !== false);
+      return `<div class="set">
+          <div class="set-head">
+            <b>Set ${gi + 1}</b><span>${copies(g.length)}</span>
+            ${dims(first) ? `<span>· ${dims(first)}</span>` : ""}<span>· ${size(first.size)}</span>
+            <span class="grow"></span>
+            <span class="set-tag ${allSame ? "" : "diff"}">${allSame ? "Identical files" : "Same picture, different files"}</span>
+          </div>
+          <div class="pics">${g.map((m) => picCard(m, "exact")).join("")}</div>
+        </div>`;
+    }).join("") || `<div class="none">No duplicates match your search.</div>`);
+  }
+
+  function renderSimilar() {
+    const r = state.result; if (!r) return;
+    if (!r.similar_checked) {
+      $("tabSimilar").innerHTML = `<div class="none">Similar-picture matching was off for this scan. Turn on <b>Similar pictures</b> and scan again.</div>`;
+      return;
+    }
+    if (!state.similar.length) {
+      $("tabSimilar").innerHTML = `<div class="none">No similar pictures at the <b>${LEVEL_NAME[r.sensitivity]}</b> setting.${r.sensitivity !== "loose" ? " Try a looser setting to catch bigger edits." : ""}</div>`;
+      return;
+    }
+    const note = `<div class="note"><span class="t-icon">${icon("eye")}</span><div>
+        <b>These pictures look alike but aren't identical</b>, for example a smaller copy or an edited version
+        (matching: <b>${LEVEL_NAME[r.sensitivity]}</b>). <b>Best quality</b> is the copy with the most pixels; the others show how alike they are.
+        Look at each set before removing: click a picture to compare them full size.</div></div>`;
+    const sets = state.similar.map((g, gi) => ({ g, gi })).filter(({ g }) => g.some(matches));
+    $("tabSimilar").innerHTML = note + (sets.map(({ g, gi }) => {
+      const others = g.filter((m) => !m.removed && m.sstate === "similar").length;
+      return `<div class="set">
+          <div class="set-head">
+            <b>Similar set ${gi + 1}</b><span>${g.length} pictures</span>
+            <span class="grow"></span>
+            ${others ? `<button class="btn tiny" data-act="remove-others" data-set="${gi}">${icon("Trash")} Keep best, remove ${others === 1 ? "the other" : `the other ${others}`}</button>` : ""}
+          </div>
+          <div class="pics">${g.map((m) => picCard(m, "similar")).join("")}</div>
+        </div>`;
+    }).join("") || `<div class="none">No similar pictures match your search.</div>`);
+  }
+
+  function allList() { return state.result ? state.result.pictures.filter(matches) : []; }
+  function renderAll() {
+    const r = state.result; if (!r) return;
+    const list = allList();
+    if (!list.length) { $("tabAll").innerHTML = `<div class="none">${r.pictures.length ? "No pictures match your search." : "No pictures found."}</div>`; return; }
+    const shown = list.slice(0, state.shownAll);
+    $("tabAll").innerHTML = `<div class="pics small">${shown.map((m) => picCard(m, "all", true)).join("")}</div>` +
+      (list.length > shown.length ? `<div style="text-align:center"><button class="btn small more" data-act="more">Show ${Math.min(120, list.length - shown.length)} more of ${(list.length - shown.length).toLocaleString()}</button></div>` : "");
+  }
+
+  function setTab(t) {
+    state.tab = t;
+    document.querySelectorAll(".tab").forEach((b) => b.classList.toggle("active", b.dataset.tab === t));
+    $("tabExact").hidden = t !== "exact"; $("tabSimilar").hidden = t !== "similar";
+    $("tabAll").hidden = t !== "all"; $("tabLog").hidden = t !== "log";
+    $("searchBox").hidden = t === "log";
+  }
+  function refresh() { renderResult(); if (state.viewer) renderViewer(); }
+
+  // ---------- Keep / Remove / Restore / choose the keeper ----------
+  function toggleKeep(m, ctx) {
+    const f = ctx === "similar" ? "sstate" : "state";
+    const from = ctx === "similar" ? "similar" : "duplicate";
+    if (m[f] === from) m[f] = "kept"; else if (m[f] === "kept") m[f] = from;
+    refresh();
+  }
+
+  async function removePics(list) {
+    list = list.filter((m) => !m.removed);
+    if (!list.length) return;
+    try {
+      const { results, errors } = await api("/api/image-action", { action: "remove", paths: list.map((m) => m.path) });
+      let n = 0;
+      for (const m of list) if (m.path in results) { m.removed = true; m.trashed = results[m.path]; n++; }
+      toast(`${plural(n, "picture")} moved to the Trash.` + (errors && errors.length ? ` ${errors.length} couldn't be moved.` : ""), !!(errors && errors.length));
+    } catch (e) { toast(e.message, true); }
+    refresh();
+  }
+
+  async function restorePic(m) {
+    try {
+      const { results } = await api("/api/image-action", { action: "restore", items: [{ path: m.path, trashed: m.trashed }] });
+      const back = results[m.path];
+      if (back && back !== m.path) { delete state.byPath[m.path]; m.path = back; state.byPath[back] = m; }
+      m.removed = false; m.trashed = null;
+      toast(`${base(m.path)} is back where it was.`);
+    } catch (e) { toast(e.message, true); }
+    refresh();
+  }
+
+  function promote(m, ctx) {
+    if (ctx === "similar") {
+      const g = state.similar[m.sgroup]; if (!g) return;
+      g.forEach((x) => { if (x.sstate === "best") x.sstate = "similar"; });
+      m.sstate = "best";
+      toast(`${base(m.path)} is now the one to keep in this set.`);
+    } else {
+      const g = state.exact[m.group]; if (!g) return;
+      g.forEach((x) => { if (x.state === "original") x.state = "duplicate"; });
+      m.state = "original";
+      toast(`${base(m.path)} is now the original of this set.`);
+    }
+    refresh();
+  }
+
+  async function removeAllExact() {
+    const list = state.exact.flat().filter((m) => !m.removed && m.state === "duplicate");
+    if (!list.length) return;
+    const ok = await confirmBox({
+      title: `Move ${plural(list.length, "exact duplicate")} to the Trash?`,
+      body: `This frees ${size(list.reduce((n, m) => n + m.size, 0))}. The original of each set stays, and so do copies you marked <b>Keep</b>. Similar pictures aren't touched. You can restore removed pictures here or with Put Back in Finder.`,
+      ok: "Move to Trash", danger: true,
+    });
+    if (ok) await removePics(list);
+  }
+
+  async function removeOthers(gi) {
+    const g = state.similar[gi]; if (!g) return;
+    const best = g.find((m) => m.sstate === "best");
+    const list = g.filter((m) => !m.removed && m.sstate === "similar");
+    if (!list.length) return;
+    const ok = await confirmBox({
+      title: `Keep ${best ? base(best.path) : "the best"} and remove ${list.length === 1 ? "the other picture" : `the other ${list.length}`}?`,
+      body: `${list.map((m) => `• ${h(base(m.path))}${m.width ? ` (${m.width} × ${m.height})` : ""}`).join("<br>")}<br><br>They go to the Trash, and you can restore them. Pictures you marked <b>Keep</b> stay.`,
+      ok: "Move to Trash", danger: true,
+    });
+    if (ok) await removePics(list);
+  }
+
+  // ---------- full-size viewer ----------
+  function openViewer(path, ctx) {
+    const m = state.byPath[path]; if (!m) return;
+    let list;
+    if (ctx === "exact" && m.group !== undefined) list = state.exact[m.group];
+    else if (ctx === "similar" && m.sgroup !== undefined) list = state.similar[m.sgroup];
+    else { list = allList(); ctx = "all"; }
+    state.viewer = { list, index: Math.max(0, list.indexOf(m)), ctx };
+    renderViewer();
+  }
+  function closeViewer() { state.viewer = null; $("viewerRoot").innerHTML = ""; }
+  function step(d) {
+    const v = state.viewer; if (!v) return;
+    const i = v.index + d;
+    if (i >= 0 && i < v.list.length) { v.index = i; renderViewer(); }
+  }
+  function renderViewer() {
+    const v = state.viewer; if (!v) return;
+    const m = v.list[v.index]; if (!m) { closeViewer(); return; }
+    const ctx = v.ctx;
+    const b = badgeFor(m, ctx);
+    const c = ctxOf(m, ctx);
+    const best = c === "similar" && m.sgroup !== undefined ? state.similar[m.sgroup].find((x) => x.sstate === "best") : null;
+    const rows = [
+      ["Folder", pretty(folderOf(m.path))],
+      ["Pixels", (dims(m) || "Unknown") + (best && best !== m && best.width ? `  (best: ${dims(best)})` : "")],
+      ["Size", size(m.size)],
+      ["Changed", m.mtime ? date(m.mtime) : ""],
+      ["Type", kind(m.path)],
+      c === "similar" && m.sstate !== "best" && m.likeness != null ? ["Alike", `${m.likeness}% like the best copy`] : null,
+    ].filter(Boolean);
+    const setLabel = ctx === "exact" ? " in this set" : ctx === "similar" ? " in this similar set" : "";
+    const st = stateIn(m, ctx);
+    $("viewerRoot").innerHTML = `
+      <div class="viewer" role="dialog" aria-modal="true" aria-label="Picture viewer">
+        <div class="v-stage" data-act="close-bg">
+          <button class="v-nav v-prev" data-act="prev" title="Previous (←)" ${v.index === 0 ? "disabled" : ""}>${icon("left")}</button>
+          <img alt="${h(base(m.path))}" src="${h(thumbUrl(m.path, 2000))}">
+          <button class="v-nav v-next" data-act="next" title="Next (→)" ${v.index === v.list.length - 1 ? "disabled" : ""}>${icon("right")}</button>
+          <div class="v-count">${v.index + 1} of ${v.list.length}${setLabel}</div>
+        </div>
+        <aside class="v-side">
+          <div class="v-top"><h3>${h(base(m.path))}</h3>
+            <button class="icon-btn" data-act="close" title="Close (Esc)">${icon("close")}</button></div>
+          ${b ? `<div><span class="badge ${b[0]}">${b[1]}</span>${c === "exact" && st !== "original" && m.same_file === false ? ` <span class="set-tag diff">Same picture, different file</span>` : ""}</div>` : ""}
+          <div class="v-rows">${rows.map(([k, val]) => `<span class="k">${k}</span><span class="v">${h(val)}</span>`).join("")}</div>
+          ${st ? `<div class="v-actions">${picActions(m, c)}</div>` : ""}
+          ${!m.removed && (st === "duplicate" || st === "similar" || st === "kept")
+            ? `<button class="linkish" data-act="promote" data-ctx="${c}" data-path="${h(m.path)}" style="align-self:flex-start">${c === "similar" ? "Make this the one to keep" : "Make this the original"}</button>` : ""}
+          ${!st ? `<p class="v-hint">This picture has no duplicates or look-alikes.</p>` : ""}
+          <p class="v-hint">← → to move between pictures · Esc to close</p>
+        </aside>
+      </div>`;
+  }
+
+  // ---------- wiring ----------
+  $("srcCard").onclick = pick;
+  $("scanBtn").onclick = scan;
+  $("stopBtn").onclick = stopNow;
+  $("optRecursive").onchange = saveSettings;
+  $("optSimilar").onchange = () => { renderOptions(); saveSettings(); };
+  document.querySelectorAll(".seg button").forEach((b) => b.onclick = () => { state.level = b.dataset.level; renderOptions(); saveSettings(); });
+  $("search").oninput = (e) => { state.query = e.target.value; state.shownAll = 120; renderExact(); renderSimilar(); renderAll(); };
+  document.querySelectorAll(".tab").forEach((b) => b.onclick = () => setTab(b.dataset.tab));
+
+  document.addEventListener("keydown", (e) => {
+    if ($("modalRoot").innerHTML) return;
+    if (state.viewer) {
+      if (e.key === "Escape") closeViewer();
+      else if (e.key === "ArrowLeft") step(-1);
+      else if (e.key === "ArrowRight") step(1);
+      return;
+    }
+    if (e.key === "Escape" && state.busy) stopNow();
+  });
+
+  document.addEventListener("click", (e) => {
+    const el = e.target.closest("[data-act]");
+    if (!el) return;
+    const act = el.dataset.act;
+    if (act === "close-bg") { if (e.target === el) closeViewer(); return; }
+    const m = el.dataset.path ? state.byPath[el.dataset.path] : null;
+    switch (act) {
+      case "view": openViewer(el.dataset.path, el.dataset.ctx); break;
+      case "keep": if (m) toggleKeep(m, el.dataset.ctx); break;
+      case "remove": if (m) removePics([m]); break;
+      case "restore": if (m) restorePic(m); break;
+      case "promote": if (m) promote(m, el.dataset.ctx); break;
+      case "reveal": api("/api/reveal", { path: el.dataset.path, select: true }).catch((err) => toast(err.message, true)); break;
+      case "open-folder": api("/api/reveal", { path: state.result.source, select: false }).catch((err) => toast(err.message, true)); break;
+      case "remove-exact": removeAllExact(); break;
+      case "remove-others": removeOthers(Number(el.dataset.set)); break;
+      case "more": state.shownAll += 120; renderAll(); break;
+      case "prev": step(-1); break;
+      case "next": step(1); break;
+      case "close": closeViewer(); break;
+    }
+  });
+
+  // ---------- start ----------
+  const saved = store.get("image");
+  if (saved) {
+    state.source = saved.source || "";
+    $("optRecursive").checked = saved.recursive !== false;
+    $("optSimilar").checked = saved.similar !== false;
+    if (LEVELS[saved.level]) state.level = saved.level;
+  }
+  renderOptions(); renderFolder();
+  SX.ready.then(renderFolder);
+})();
+</script>
+</body>
+</html>
